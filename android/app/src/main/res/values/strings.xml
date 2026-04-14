@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="accessibility_service_description">CloneX 无障碍服务用于录制和重放用户操作</string>
+</resources>
