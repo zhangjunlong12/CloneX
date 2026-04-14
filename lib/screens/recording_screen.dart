@@ -1,4 +1,7 @@
+import 'dart:async';
+import 'dart:math';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 import '../models/operation.dart';
@@ -18,11 +21,15 @@ class _RecordingScreenState extends ConsumerState<RecordingScreen> {
   DateTime? _recordingStartTime;
   int _tapCount = 0;
   int _swipeCount = 0;
+  Timer? _recordingTimer;
+  final Random _random = Random();
 
   final _taskNameController = TextEditingController();
+  static const _channel = MethodChannel('com.clonex/recording');
 
   @override
   void dispose() {
+    _recordingTimer?.cancel();
     _taskNameController.dispose();
     super.dispose();
   }
@@ -118,17 +125,15 @@ class _RecordingScreenState extends ConsumerState<RecordingScreen> {
                         Container(
                           width: 28,
                           height: 28,
-                          decoration: const BoxDecoration(
-                            color: Color(0xFF3B82F6),
+                          decoration: BoxDecoration(
+                            color: _getOperationColor(op.type),
                             shape: BoxShape.circle,
                           ),
                           child: Center(
-                            child: Text(
-                              '${index + 1}',
-                              style: const TextStyle(
-                                fontSize: 12,
-                                color: Colors.white,
-                              ),
+                            child: Icon(
+                              _getOperationIcon(op.type),
+                              size: 14,
+                              color: Colors.white,
                             ),
                           ),
                         ),
@@ -187,6 +192,23 @@ class _RecordingScreenState extends ConsumerState<RecordingScreen> {
                         color: Colors.grey[500],
                       ),
                     ),
+                    const SizedBox(height: 8),
+                    Container(
+                      margin: const EdgeInsets.symmetric(horizontal: 32),
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFEF3C7),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Text(
+                        '提示：请确保已开启无障碍服务权限',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Color(0xFF92400E),
+                        ),
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -225,6 +247,43 @@ class _RecordingScreenState extends ConsumerState<RecordingScreen> {
         ],
       ),
     );
+  }
+
+  Color _getOperationColor(OperationType type) {
+    switch (type) {
+      case OperationType.tap:
+        return const Color(0xFF3B82F6);
+      case OperationType.longPress:
+        return const Color(0xFFF59E0B);
+      case OperationType.swipe:
+        return const Color(0xFF10B981);
+      case OperationType.input:
+        return const Color(0xFF8B5CF6);
+      case OperationType.scroll:
+        return const Color(0xFF06B6D4);
+      case OperationType.back:
+      case OperationType.home:
+        return const Color(0xFF64748B);
+    }
+  }
+
+  IconData _getOperationIcon(OperationType type) {
+    switch (type) {
+      case OperationType.tap:
+        return Icons.touch_app;
+      case OperationType.longPress:
+        return Icons.touch_app_outlined;
+      case OperationType.swipe:
+        return Icons.swipe;
+      case OperationType.input:
+        return Icons.keyboard;
+      case OperationType.scroll:
+        return Icons.sync;
+      case OperationType.back:
+        return Icons.arrow_back;
+      case OperationType.home:
+        return Icons.home;
+    }
   }
 
   Widget _buildRecordingIndicator() {
@@ -352,28 +411,71 @@ class _RecordingScreenState extends ConsumerState<RecordingScreen> {
     }
   }
 
-  void _startRecording() {
-    // TODO: 连接 Android 无障碍服务开始录制
-    _simulateRecording();
+  void _startRecording() async {
+    try {
+      await _channel.invokeMethod('startRecording');
+    } catch (e) {
+      debugPrint('Failed to start native recording: $e');
+    }
+    _startSimulatedRecording();
   }
 
-  void _stopRecording() {
-    // TODO: 停止 Android 无障碍服务
+  void _stopRecording() async {
+    _recordingTimer?.cancel();
+    _recordingTimer = null;
+    try {
+      await _channel.invokeMethod('stopRecording');
+    } catch (e) {
+      debugPrint('Failed to stop native recording: $e');
+    }
   }
 
-  void _simulateRecording() {
-    // 模拟录制演示（实际使用时通过无障碍服务获取真实操作）
-    Future.delayed(const Duration(seconds: 2), () {
-      if (_isRecording && mounted) {
-        _addOperation(Operation(
+  void _startSimulatedRecording() {
+    // 模拟录制 - 生成随机操作
+    // 注意：真正的触摸录制需要 Android 端实现触摸监听
+    _recordingTimer = Timer.periodic(const Duration(milliseconds: 800), (timer) {
+      if (!_isRecording || !mounted) {
+        timer.cancel();
+        return;
+      }
+
+      final opType = _random.nextInt(10);
+      Operation op;
+
+      if (opType < 6) {
+        // 60% 概率点击
+        op = Operation(
           id: const Uuid().v4(),
           type: OperationType.tap,
-          x: 200,
-          y: 500,
+          x: 200 + _random.nextInt(800).toDouble(),
+          y: 400 + _random.nextInt(1200).toDouble(),
           timestamp: DateTime.now(),
-        ));
-        _simulateRecording();
+        );
+      } else if (opType < 9) {
+        // 30% 概率滑动
+        final startX = 200 + _random.nextInt(800).toDouble();
+        final startY = 600 + _random.nextInt(800).toDouble();
+        op = Operation(
+          id: const Uuid().v4(),
+          type: OperationType.swipe,
+          x: startX,
+          y: startY,
+          endX: startX + _random.nextInt(400).toDouble() - 200,
+          endY: startY + _random.nextInt(600).toDouble() - 300,
+          timestamp: DateTime.now(),
+        );
+      } else {
+        // 10% 概率滚动
+        op = Operation(
+          id: const Uuid().v4(),
+          type: OperationType.scroll,
+          x: 540,
+          y: 1500,
+          timestamp: DateTime.now(),
+        );
       }
+
+      _addOperation(op);
     });
   }
 
@@ -381,16 +483,24 @@ class _RecordingScreenState extends ConsumerState<RecordingScreen> {
     if (!_isRecording) return;
     setState(() {
       _recordedOperations.add(op);
-      if (op.type == OperationType.tap) _tapCount++;
-      if (op.type == OperationType.swipe) _swipeCount++;
+      if (op.type == OperationType.tap || op.type == OperationType.longPress) {
+        _tapCount++;
+      }
+      if (op.type == OperationType.swipe || op.type == OperationType.scroll) {
+        _swipeCount++;
+      }
     });
   }
 
   void _removeOperation(int index) {
     setState(() {
       final op = _recordedOperations.removeAt(index);
-      if (op.type == OperationType.tap) _tapCount--;
-      if (op.type == OperationType.swipe) _swipeCount--;
+      if (op.type == OperationType.tap || op.type == OperationType.longPress) {
+        _tapCount--;
+      }
+      if (op.type == OperationType.swipe || op.type == OperationType.scroll) {
+        _swipeCount--;
+      }
     });
   }
 
@@ -409,6 +519,9 @@ class _RecordingScreenState extends ConsumerState<RecordingScreen> {
   }
 
   void _handleClose(BuildContext context) {
+    if (_isRecording) {
+      _stopRecording();
+    }
     if (_recordedOperations.isNotEmpty) {
       showDialog(
         context: context,
