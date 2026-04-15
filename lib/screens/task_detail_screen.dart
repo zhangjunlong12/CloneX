@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import '../models/task.dart';
@@ -19,6 +20,7 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> {
   bool _isPlaying = false;
   int _currentStep = 0;
   int _totalSteps = 0;
+  bool _elementServiceEnabled = false;
 
   @override
   void initState() {
@@ -44,6 +46,21 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> {
       },
     );
     _totalSteps = widget.task.operations.length;
+    _checkElementService();
+  }
+
+  Future<void> _checkElementService() async {
+    const channel = MethodChannel('com.clonex/element');
+    try {
+      final result = await channel.invokeMethod<bool>('isElementServiceEnabled');
+      if (mounted) {
+        setState(() => _elementServiceEnabled = result ?? false);
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _elementServiceEnabled = false);
+      }
+    }
   }
 
   @override
@@ -158,6 +175,8 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> {
                     ],
                   ],
                 ),
+                const SizedBox(height: 12),
+                _buildAccessibilityStatus(),
               ],
             ),
           ),
@@ -340,6 +359,42 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> {
                   ),
                 );
               },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAccessibilityStatus() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: _elementServiceEnabled
+            ? const Color(0xFF10B981).withOpacity(0.1)
+            : const Color(0xFFF59E0B).withOpacity(0.1),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            _elementServiceEnabled ? Icons.check_circle : Icons.warning,
+            size: 16,
+            color: _elementServiceEnabled
+                ? const Color(0xFF10B981)
+                : const Color(0xFFF59E0B),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            _elementServiceEnabled
+                ? '元素级无障碍服务已连接'
+                : '元素级无障碍服务未连接',
+            style: TextStyle(
+              fontSize: 12,
+              color: _elementServiceEnabled
+                  ? const Color(0xFF10B981)
+                  : const Color(0xFFF59E0B),
             ),
           ),
         ],

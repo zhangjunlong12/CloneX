@@ -28,5 +28,7 @@
 	<string>MainMenu</string>
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>
+	<key>NSAppleEventsUsageDescription</key>
+	<string>CloneX 需要控制其他应用程序来自动执行您的操作。</string>
 </dict>
 </plist>

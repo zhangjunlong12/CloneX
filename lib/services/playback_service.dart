@@ -78,15 +78,68 @@ class PlaybackService {
   Future<void> _executeOperation(Operation op) async {
     bool success = false;
 
-    // 优先使用 Shizuku
-    if (_shizukuEnabled) {
-      success = await _executeWithShizuku(op);
+    // 优先使用元素级无障碍服务
+    if (op.elementText != null || op.elementId != null || op.elementDescription != null) {
+      success = await _executeWithElementService(op);
     }
 
-    // 如果 Shizuku 失败或不可用，回退到 AccessibilityService
+    // 如果元素查找失败或无元素信息，回退到坐标-based
     if (!success) {
       success = await _executeWithAccessibilityService(op);
     }
+  }
+
+  Future<bool> _executeWithElementService(Operation op) async {
+    const channel = MethodChannel('com.clonex/element');
+
+    try {
+      bool? result;
+
+      // 优先使用 elementText
+      if (op.elementText != null && op.elementText!.isNotEmpty) {
+        result = await channel.invokeMethod<bool>('findAndClickByText', {
+          'text': op.elementText,
+        });
+        if (result == true) {
+          debugPrint('ElementService clicked by text: ${op.elementText}');
+          return true;
+        }
+      }
+
+      // 尝试 elementId
+      if (op.elementId != null && op.elementId!.isNotEmpty) {
+        result = await channel.invokeMethod<bool>('findAndClickByViewId', {
+          'viewId': op.elementId,
+        });
+        if (result == true) {
+          debugPrint('ElementService clicked by viewId: ${op.elementId}');
+          return true;
+        }
+      }
+
+      // 尝试 elementDescription
+      if (op.elementDescription != null && op.elementDescription!.isNotEmpty) {
+        result = await channel.invokeMethod<bool>('findAndClickByDescription', {
+          'description': op.elementDescription,
+        });
+        if (result == true) {
+          debugPrint('ElementService clicked by description: ${op.elementDescription}');
+          return true;
+        }
+      }
+
+      // 如果是 scroll 操作
+      if (op.type == OperationType.scroll) {
+        result = await channel.invokeMethod<bool>('findAndScroll');
+        if (result == true) {
+          debugPrint('ElementService scrolled');
+          return true;
+        }
+      }
+    } catch (e) {
+      debugPrint('ElementService failed: $e');
+    }
+    return false;
   }
 
   Future<bool> _executeWithShizuku(Operation op) async {

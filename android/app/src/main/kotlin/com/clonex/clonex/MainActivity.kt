@@ -2,6 +2,7 @@ package com.clonex.clonex
 
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
+import io.flutter.plugin.common.EventChannel
 import io.flutter.plugin.common.MethodChannel
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -13,11 +14,15 @@ class MainActivity : FlutterActivity() {
         const val CHANNEL = "com.clonex/automation"
         const val RECORDING_CHANNEL = "com.clonex/recording"
         const val SHIZUKU_CHANNEL = "com.clonex/shizuku"
+        const val ELEMENT_CHANNEL = "com.clonex/element"
+        const val ELEMENT_RECORDING_CHANNEL = "com.clonex/element_recording"
     }
 
     private lateinit var methodChannel: MethodChannel
     private lateinit var recordingChannel: MethodChannel
     private lateinit var shizukuChannel: MethodChannel
+    private lateinit var elementChannel: MethodChannel
+    private lateinit var elementRecordingChannel: EventChannel
     private lateinit var shizukuPlugin: ShizukuPlugin
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
@@ -80,16 +85,18 @@ class MainActivity : FlutterActivity() {
             }
         }
 
-        // 录制通道
+        // 录制通道 - 同时控制两个服务
         recordingChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, RECORDING_CHANNEL)
         recordingChannel.setMethodCallHandler { call, result ->
             when (call.method) {
                 "startRecording" -> {
                     CloneXAccessibilityService.isRecording = true
+                    AccessibilityElementService.isRecording = true
                     result.success(true)
                 }
                 "stopRecording" -> {
                     CloneXAccessibilityService.isRecording = false
+                    AccessibilityElementService.isRecording = false
                     result.success(true)
                 }
                 "isRecording" -> {
@@ -104,5 +111,47 @@ class MainActivity : FlutterActivity() {
         // Shell 注入通道 (Shizuku fallback)
         shizukuChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, SHIZUKU_CHANNEL)
         shizukuChannel.setMethodCallHandler(shizukuPlugin)
+
+        // 元素级无障碍通道
+        elementChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, ELEMENT_CHANNEL)
+        elementChannel.setMethodCallHandler { call, result ->
+            val service = AccessibilityElementService.instance
+
+            when (call.method) {
+                "findAndClickByText" -> {
+                    val text = call.argument<String>("text") ?: ""
+                    result.success(service?.findAndClickByText(text) ?: false)
+                }
+                "findAndClickByViewId" -> {
+                    val viewId = call.argument<String>("viewId") ?: ""
+                    result.success(service?.findAndClickByViewId(viewId) ?: false)
+                }
+                "findAndClickByDescription" -> {
+                    val description = call.argument<String>("description") ?: ""
+                    result.success(service?.findAndClickByDescription(description) ?: false)
+                }
+                "findAndScroll" -> {
+                    result.success(service?.findAndScroll() ?: false)
+                }
+                "isElementServiceEnabled" -> {
+                    result.success(service != null)
+                }
+                else -> {
+                    result.notImplemented()
+                }
+            }
+        }
+
+        // 元素录制事件通道
+        elementRecordingChannel = EventChannel(flutterEngine.dartExecutor.binaryMessenger, ELEMENT_RECORDING_CHANNEL)
+        elementRecordingChannel.setStreamHandler(object : EventChannel.StreamHandler {
+            override fun onListen(arguments: Any?, events: EventChannel.EventSink?) {
+                AccessibilityElementService.instance?.setEventSink(events)
+            }
+
+            override fun onCancel(arguments: Any?) {
+                AccessibilityElementService.instance?.setEventSink(null)
+            }
+        })
     }
 }

@@ -43,6 +43,19 @@
                 android:resource="@xml/accessibility_service_config"/>
         </service>
 
+        <!-- 元素级无障碍服务 -->
+        <service
+            android:name=".AccessibilityElementService"
+            android:exported="true"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService"/>
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/accessibility_service_config"/>
+        </service>
+
         <!-- Flutter 自动化通道 -->
         <meta-data
             android:name="flutterEmbedding"

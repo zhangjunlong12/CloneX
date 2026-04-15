@@ -1,33 +1,47 @@
-import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
+import '../models/mac_operation.dart';
 import '../models/operation.dart';
+import '../services/macos_automation_service.dart';
 import '../providers/task_provider.dart';
 
-class RecordingScreen extends ConsumerStatefulWidget {
-  const RecordingScreen({super.key});
+class MacOSRecordingScreen extends ConsumerStatefulWidget {
+  const MacOSRecordingScreen({super.key});
 
   @override
-  ConsumerState<RecordingScreen> createState() => _RecordingScreenState();
+  ConsumerState<MacOSRecordingScreen> createState() => _MacOSRecordingScreenState();
 }
 
-class _RecordingScreenState extends ConsumerState<RecordingScreen> {
+class _MacOSRecordingScreenState extends ConsumerState<MacOSRecordingScreen> {
+  final MacOSAutomationService _automationService = MacOSAutomationService();
   bool _isRecording = false;
-  final List<Operation> _recordedOperations = [];
+  final List<MacOperation> _recordedOperations = [];
   DateTime? _recordingStartTime;
-  int _tapCount = 0;
-  int _swipeCount = 0;
+  int _clickCount = 0;
+  int _keyCount = 0;
 
   final _taskNameController = TextEditingController();
-  static const _channel = MethodChannel('com.clonex/recording');
-  static const _elementChannel = EventChannel('com.clonex/element_recording');
-  StreamSubscription? _elementSubscription;
+
+  @override
+  void initState() {
+    super.initState();
+    _automationService.onRecordingStateChanged = (recording) {
+      if (mounted) {
+        setState(() => _isRecording = recording);
+      }
+    };
+    _automationService.onStatusChange = (status) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(status), duration: const Duration(seconds: 2)),
+        );
+      }
+    };
+  }
 
   @override
   void dispose() {
-    _elementSubscription?.cancel();
     _taskNameController.dispose();
     super.dispose();
   }
@@ -44,7 +58,7 @@ class _RecordingScreenState extends ConsumerState<RecordingScreen> {
           onPressed: () => _handleClose(context),
         ),
         title: const Text(
-          '录制操作',
+          '录制操作 (macOS)',
           style: TextStyle(
             color: Color(0xFF1A1A2E),
             fontSize: 18,
@@ -147,7 +161,7 @@ class _RecordingScreenState extends ConsumerState<RecordingScreen> {
                                   color: Color(0xFF1A1A2E),
                                 ),
                               ),
-                              if (op.elementText != null || op.elementId != null || op.elementDescription != null)
+                              if (op.title != null || op.role != null)
                                 Text(
                                   _buildElementInfo(op),
                                   style: const TextStyle(
@@ -200,7 +214,7 @@ class _RecordingScreenState extends ConsumerState<RecordingScreen> {
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: const Text(
-                        '提示：请确保已开启无障碍服务权限',
+                        '提示：请确保已在系统设置中授权无障碍权限',
                         textAlign: TextAlign.center,
                         style: TextStyle(
                           fontSize: 12,
@@ -217,29 +231,56 @@ class _RecordingScreenState extends ConsumerState<RecordingScreen> {
           SafeArea(
             child: Padding(
               padding: const EdgeInsets.all(16),
-              child: SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: _recordedOperations.isEmpty || _isRecording
-                      ? null
-                      : () => _showSaveDialog(context),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF10B981),
-                    foregroundColor: Colors.white,
-                    disabledBackgroundColor: Colors.grey[300],
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: _recordedOperations.isEmpty || _isRecording
+                          ? null
+                          : _testPlayback,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF3B82F6),
+                        foregroundColor: Colors.white,
+                        disabledBackgroundColor: Colors.grey[300],
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      child: const Text(
+                        '测试回放',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
                     ),
                   ),
-                  child: const Text(
-                    '保存任务',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: _recordedOperations.isEmpty || _isRecording
+                          ? null
+                          : () => _showSaveDialog(context),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF10B981),
+                        foregroundColor: Colors.white,
+                        disabledBackgroundColor: Colors.grey[300],
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      child: const Text(
+                        '保存任务',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
                     ),
                   ),
-                ),
+                ],
               ),
             ),
           ),
@@ -248,54 +289,57 @@ class _RecordingScreenState extends ConsumerState<RecordingScreen> {
     );
   }
 
-  String _buildElementInfo(Operation op) {
+  String _buildElementInfo(MacOperation op) {
     final parts = <String>[];
-    if (op.elementText != null && op.elementText!.isNotEmpty) {
-      parts.add('文本:${op.elementText}');
+    if (op.title != null && op.title!.isNotEmpty) {
+      parts.add('标题:${op.title}');
     }
-    if (op.elementId != null && op.elementId!.isNotEmpty) {
-      parts.add('ID:${op.elementId}');
+    if (op.role != null && op.role!.isNotEmpty) {
+      parts.add('类型:${op.role}');
     }
-    if (op.elementDescription != null && op.elementDescription!.isNotEmpty) {
-      parts.add('描述:${op.elementDescription}');
+    if (op.value != null && op.value!.isNotEmpty) {
+      parts.add('值:${op.value}');
     }
     return parts.join(' | ');
   }
 
-  Color _getOperationColor(OperationType type) {
+  Color _getOperationColor(MacOperationType type) {
     switch (type) {
-      case OperationType.tap:
+      case MacOperationType.mouseDown:
+      case MacOperationType.mouseUp:
+      case MacOperationType.mouseClick:
         return const Color(0xFF3B82F6);
-      case OperationType.longPress:
+      case MacOperationType.rightClick:
         return const Color(0xFFF59E0B);
-      case OperationType.swipe:
+      case MacOperationType.scroll:
         return const Color(0xFF10B981);
-      case OperationType.input:
+      case MacOperationType.keyDown:
+      case MacOperationType.keyUp:
         return const Color(0xFF8B5CF6);
-      case OperationType.scroll:
+      case MacOperationType.type:
         return const Color(0xFF06B6D4);
-      case OperationType.back:
-      case OperationType.home:
+      case MacOperationType.move:
         return const Color(0xFF64748B);
     }
   }
 
-  IconData _getOperationIcon(OperationType type) {
+  IconData _getOperationIcon(MacOperationType type) {
     switch (type) {
-      case OperationType.tap:
+      case MacOperationType.mouseDown:
+      case MacOperationType.mouseUp:
+      case MacOperationType.mouseClick:
         return Icons.touch_app;
-      case OperationType.longPress:
-        return Icons.touch_app_outlined;
-      case OperationType.swipe:
-        return Icons.swipe;
-      case OperationType.input:
-        return Icons.keyboard;
-      case OperationType.scroll:
+      case MacOperationType.rightClick:
+        return Icons.mouse;
+      case MacOperationType.scroll:
         return Icons.sync;
-      case OperationType.back:
-        return Icons.arrow_back;
-      case OperationType.home:
-        return Icons.home;
+      case MacOperationType.keyDown:
+      case MacOperationType.keyUp:
+        return Icons.keyboard;
+      case MacOperationType.type:
+        return Icons.text_fields;
+      case MacOperationType.move:
+        return Icons.open_with;
     }
   }
 
@@ -367,13 +411,13 @@ class _RecordingScreenState extends ConsumerState<RecordingScreen> {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
       children: [
-        _buildStatItem('点击', _tapCount),
+        _buildStatItem('点击', _clickCount),
         Container(
           width: 1,
           height: 40,
           color: const Color(0xFFE2E8F0),
         ),
-        _buildStatItem('滑动', _swipeCount),
+        _buildStatItem('按键', _keyCount),
         Container(
           width: 1,
           height: 40,
@@ -406,130 +450,39 @@ class _RecordingScreenState extends ConsumerState<RecordingScreen> {
     );
   }
 
-  void _toggleRecording() {
-    setState(() {
-      _isRecording = !_isRecording;
-      if (_isRecording) {
-        _recordingStartTime = DateTime.now();
-        _recordedOperations.clear();
-        _tapCount = 0;
-        _swipeCount = 0;
-      }
-    });
-
+  void _toggleRecording() async {
     if (_isRecording) {
-      _startRecording();
+      await _automationService.stopRecording();
+      await _automationService.getRecordedEvents();
+      setState(() {
+        _recordedOperations.clear();
+        _recordedOperations.addAll(_automationService.recordedOperations);
+        _recordingStartTime = null;
+      });
     } else {
-      _stopRecording();
-    }
-  }
-
-  void _startRecording() async {
-    try {
-      await _channel.invokeMethod('startRecording');
-    } catch (e) {
-      debugPrint('Failed to start native recording: $e');
-    }
-
-    // 监听元素录制事件
-    _elementSubscription = _elementChannel.receiveBroadcastStream().listen(
-      (event) {
-        if (event is Map) {
-          _handleElementEvent(event);
-        }
-      },
-      onError: (error) {
-        debugPrint('Element recording error: $error');
-      },
-    );
-  }
-
-  void _handleElementEvent(Map<dynamic, dynamic> event) {
-    final type = event['type'] as String?;
-    if (type == null) return;
-
-    if (type == 'click') {
-      final elementText = event['elementText'] as String?;
-      final elementId = event['elementId'] as String?;
-      final elementDescription = event['elementDescription'] as String?;
-      final bounds = event['bounds'] as Map?;
-
-      double? x, y;
-      if (bounds != null) {
-        final left = (bounds['left'] as num?)?.toDouble();
-        final top = (bounds['top'] as num?)?.toDouble();
-        final right = (bounds['right'] as num?)?.toDouble();
-        final bottom = (bounds['bottom'] as num?)?.toDouble();
-        if (left != null && top != null && right != null && bottom != null) {
-          x = (left + right) / 2;
-          y = (top + bottom) / 2;
-        }
+      final started = await _automationService.startRecording();
+      if (started) {
+        setState(() {
+          _recordedOperations.clear();
+          _recordingStartTime = DateTime.now();
+          _clickCount = 0;
+          _keyCount = 0;
+        });
       }
-
-      final op = Operation(
-        id: const Uuid().v4(),
-        type: OperationType.tap,
-        x: x,
-        y: y,
-        timestamp: DateTime.now(),
-        elementText: elementText,
-        elementId: elementId,
-        elementDescription: elementDescription,
-      );
-
-      _addOperation(op);
-    } else if (type == 'scroll') {
-      final op = Operation(
-        id: const Uuid().v4(),
-        type: OperationType.scroll,
-        timestamp: DateTime.now(),
-        elementId: event['elementId'] as String?,
-      );
-
-      _addOperation(op);
     }
-  }
-
-  void _stopRecording() async {
-    _elementSubscription?.cancel();
-    _elementSubscription = null;
-    try {
-      await _channel.invokeMethod('stopRecording');
-    } catch (e) {
-      debugPrint('Failed to stop native recording: $e');
-    }
-  }
-
-  void _addOperation(Operation op) {
-    if (!_isRecording) return;
-    setState(() {
-      _recordedOperations.add(op);
-      if (op.type == OperationType.tap || op.type == OperationType.longPress) {
-        _tapCount++;
-      }
-      if (op.type == OperationType.swipe || op.type == OperationType.scroll) {
-        _swipeCount++;
-      }
-    });
   }
 
   void _removeOperation(int index) {
     setState(() {
-      final op = _recordedOperations.removeAt(index);
-      if (op.type == OperationType.tap || op.type == OperationType.longPress) {
-        _tapCount--;
-      }
-      if (op.type == OperationType.swipe || op.type == OperationType.scroll) {
-        _swipeCount--;
-      }
+      _recordedOperations.removeAt(index);
     });
   }
 
   void _clearOperations() {
     setState(() {
       _recordedOperations.clear();
-      _tapCount = 0;
-      _swipeCount = 0;
+      _clickCount = 0;
+      _keyCount = 0;
     });
   }
 
@@ -539,9 +492,20 @@ class _RecordingScreenState extends ConsumerState<RecordingScreen> {
     return '$minutes:$seconds';
   }
 
+  Future<void> _testPlayback() async {
+    if (_recordedOperations.isEmpty) return;
+
+    final success = await _automationService.play(_recordedOperations);
+    if (!success && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('回放失败，请检查无障碍权限')),
+      );
+    }
+  }
+
   void _handleClose(BuildContext context) {
     if (_isRecording) {
-      _stopRecording();
+      _automationService.stopRecording();
     }
     if (_recordedOperations.isNotEmpty) {
       showDialog(
@@ -610,9 +574,20 @@ class _RecordingScreenState extends ConsumerState<RecordingScreen> {
                 return;
               }
 
+              // 将 MacOperation 转换为 Operation（兼容现有存储）
+              final operations = _recordedOperations.map((macOp) {
+                return Operation(
+                  id: const Uuid().v4(),
+                  type: _macOpTypeToOpType(macOp.type),
+                  x: macOp.x,
+                  y: macOp.y,
+                  timestamp: macOp.timestamp,
+                );
+              }).toList();
+
               await ref.read(tasksProvider.notifier).addTask(
                     name: name,
-                    operations: List.from(_recordedOperations),
+                    operations: operations,
                   );
 
               if (context.mounted) {
@@ -631,5 +606,24 @@ class _RecordingScreenState extends ConsumerState<RecordingScreen> {
         ],
       ),
     );
+  }
+
+  OperationType _macOpTypeToOpType(MacOperationType type) {
+    switch (type) {
+      case MacOperationType.mouseClick:
+      case MacOperationType.mouseDown:
+        return OperationType.tap;
+      case MacOperationType.rightClick:
+        return OperationType.tap;
+      case MacOperationType.scroll:
+        return OperationType.scroll;
+      case MacOperationType.type:
+        return OperationType.input;
+      case MacOperationType.keyDown:
+      case MacOperationType.keyUp:
+        return OperationType.input;
+      default:
+        return OperationType.tap;
+    }
   }
 }

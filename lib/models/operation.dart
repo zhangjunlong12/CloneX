@@ -18,6 +18,10 @@ class Operation {
   final String? text;
   final int duration;
   final DateTime timestamp;
+  // Element-based targeting
+  final String? elementText;
+  final String? elementId;
+  final String? elementDescription;
 
   Operation({
     required this.id,
@@ -29,6 +33,9 @@ class Operation {
     this.text,
     this.duration = 0,
     required this.timestamp,
+    this.elementText,
+    this.elementId,
+    this.elementDescription,
   });
 
   Map<String, dynamic> toJson() => {
@@ -41,6 +48,9 @@ class Operation {
         'text': text,
         'duration': duration,
         'timestamp': timestamp.toIso8601String(),
+        'elementText': elementText,
+        'elementId': elementId,
+        'elementDescription': elementDescription,
       };
 
   factory Operation.fromJson(Map<String, dynamic> json) => Operation(
@@ -53,6 +63,9 @@ class Operation {
         text: json['text'],
         duration: json['duration'] ?? 0,
         timestamp: DateTime.parse(json['timestamp']),
+        elementText: json['elementText'],
+        elementId: json['elementId'],
+        elementDescription: json['elementDescription'],
       );
 
   String get typeDescription {
