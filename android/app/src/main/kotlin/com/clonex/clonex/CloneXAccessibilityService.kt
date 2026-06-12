@@ -72,14 +72,14 @@ class CloneXAccessibilityService : AccessibilityService() {
         return dispatchGesture(gesture, null, null)
     }
 
-    fun performBack() {
+    fun performBack(): Boolean {
         Log.d("CloneXAccessibility", "performBack")
-        performGlobalAction(GLOBAL_ACTION_BACK)
+        return performGlobalAction(GLOBAL_ACTION_BACK)
     }
 
-    fun performHome() {
+    fun performHome(): Boolean {
         Log.d("CloneXAccessibility", "performHome")
-        performGlobalAction(GLOBAL_ACTION_HOME)
+        return performGlobalAction(GLOBAL_ACTION_HOME)
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {

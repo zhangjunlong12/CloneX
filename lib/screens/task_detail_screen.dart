@@ -416,71 +416,12 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> {
   }
 
   Future<void> _startPlayback() async {
-    // 先检查 Shizuku 权限
-    final shizukuEnabled = await _playbackService.checkShizukuPermission();
-
-    if (!shizukuEnabled) {
-      if (mounted) {
-        _showShizukuDialog();
-      }
-      return;
-    }
-
     setState(() {
       _isPlaying = true;
       _currentStep = 0;
     });
     await ref.read(tasksProvider.notifier).incrementPlayCount(widget.task.id);
     await _playbackService.play(widget.task);
-  }
-
-  void _showShizukuDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text('需要 Shizuku 权限'),
-        content: const Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Shizuku 可以帮助 CloneX 精确模拟你的操作。'),
-            SizedBox(height: 16),
-            Text('设置步骤：', style: TextStyle(fontWeight: FontWeight.bold)),
-            Text('1. 下载安装「Shizuku」应用'),
-            Text('2. 在 Shizuku 中启动无线调试'),
-            Text('3. 返回 CloneX 授予权限'),
-            SizedBox(height: 16),
-            Text('如果没有安装 Shizuku，CloneX 将尝试使用无障碍服务（可能有功能限制）。',
-              style: TextStyle(color: Colors.orange, fontSize: 12)),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () async {
-              Navigator.pop(context);
-              // 尝试请求 Shizuku 权限
-              _playbackService.requestShizukuPermission();
-              // 等待一下再检查
-              await Future.delayed(const Duration(seconds: 2));
-              final enabled = await _playbackService.checkShizukuPermission();
-              if (enabled && mounted) {
-                _startPlayback();
-              }
-            },
-            child: const Text('授予 Shizuku 权限'),
-          ),
-          TextButton(
-            onPressed: () async {
-              Navigator.pop(context);
-              // 回退到无障碍服务
-              await _playbackService.play(widget.task);
-            },
-            child: const Text('使用无障碍服务（受限）'),
-          ),
-        ],
-      ),
-    );
   }
 
   void _stopPlayback() {

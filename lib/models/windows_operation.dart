@@ -119,7 +119,7 @@ class WindowsOperation {
     );
   }
 
-  String _typeToString(WindowsOperationType type) {
+  static String _typeToString(WindowsOperationType type) {
     switch (type) {
       case WindowsOperationType.mouseDown:
         return 'mouseDown';
@@ -142,7 +142,7 @@ class WindowsOperation {
     }
   }
 
-  WindowsOperationType _typeFromString(String type) {
+  static WindowsOperationType _typeFromString(String type) {
     switch (type) {
       case 'mouseDown':
         return WindowsOperationType.mouseDown;
@@ -167,7 +167,7 @@ class WindowsOperation {
     }
   }
 
-  String? _keyCodeToString(int? keyCode) {
+  static String? _keyCodeToString(int? keyCode) {
     if (keyCode == null) return null;
     // 常见虚拟键码映射
     const keyMap = {

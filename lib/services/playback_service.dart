@@ -78,14 +78,27 @@ class PlaybackService {
   Future<void> _executeOperation(Operation op) async {
     bool success = false;
 
-    // 优先使用元素级无障碍服务
-    if (op.elementText != null || op.elementId != null || op.elementDescription != null) {
+    // 优先使用元素级无障碍服务，让任务能适应控件位置变化。
+    if (op.elementText != null ||
+        op.elementId != null ||
+        op.elementDescription != null ||
+        op.type == OperationType.scroll ||
+        op.type == OperationType.input) {
       success = await _executeWithElementService(op);
     }
 
-    // 如果元素查找失败或无元素信息，回退到坐标-based
+    // Shell/root 能力只作为增强路径，不作为普通用户重放的前置条件。
+    if (!success && _shizukuEnabled) {
+      success = await _executeWithShizuku(op);
+    }
+
+    // 最后回退到无障碍坐标手势和全局动作。
     if (!success) {
       success = await _executeWithAccessibilityService(op);
+    }
+
+    if (!success) {
+      throw Exception('执行失败: ${op.typeDescription}');
     }
   }
 
@@ -136,6 +149,16 @@ class PlaybackService {
           return true;
         }
       }
+
+      if (op.type == OperationType.input && op.text != null) {
+        result = await channel.invokeMethod<bool>('setFocusedText', {
+          'text': op.text,
+        });
+        if (result == true) {
+          debugPrint('ElementService set focused text');
+          return true;
+        }
+      }
     } catch (e) {
       debugPrint('ElementService failed: $e');
     }
@@ -180,11 +203,19 @@ class PlaybackService {
           });
           break;
         case OperationType.back:
+          result = await channel.invokeMethod<bool>('injectKeyEvent', {
+            'keyCode': 4,
+          });
+          break;
         case OperationType.home:
-          // 这些通过无障碍服务执行
-          return false;
+          result = await channel.invokeMethod<bool>('injectKeyEvent', {
+            'keyCode': 3,
+          });
+          break;
         case OperationType.input:
-          result = true;
+          result = await channel.invokeMethod<bool>('injectText', {
+            'text': op.text ?? '',
+          });
           break;
       }
       if (result == true) {
@@ -201,22 +232,23 @@ class PlaybackService {
     const platform = MethodChannel('com.clonex/automation');
 
     try {
+      bool? result;
       switch (op.type) {
         case OperationType.tap:
-          await platform.invokeMethod('tap', {
+          result = await platform.invokeMethod<bool>('tap', {
             'x': op.x ?? 0,
             'y': op.y ?? 0,
           });
           break;
         case OperationType.longPress:
-          await platform.invokeMethod('longPress', {
+          result = await platform.invokeMethod<bool>('longPress', {
             'x': op.x ?? 0,
             'y': op.y ?? 0,
             'duration': op.duration,
           });
           break;
         case OperationType.swipe:
-          await platform.invokeMethod('swipe', {
+          result = await platform.invokeMethod<bool>('swipe', {
             'startX': op.x ?? 0,
             'startY': op.y ?? 0,
             'endX': op.endX ?? 0,
@@ -224,25 +256,29 @@ class PlaybackService {
           });
           break;
         case OperationType.scroll:
-          await platform.invokeMethod('scroll', {
+          result = await platform.invokeMethod<bool>('scroll', {
             'x': op.x ?? 540,
             'y': op.y ?? 1500,
           });
           break;
         case OperationType.back:
-          await platform.invokeMethod('back');
+          result = await platform.invokeMethod<bool>('back');
           break;
         case OperationType.home:
-          await platform.invokeMethod('home');
+          result = await platform.invokeMethod<bool>('home');
           break;
         case OperationType.input:
-          await platform.invokeMethod('input', {
+          result = await platform.invokeMethod<bool>('input', {
             'text': op.text ?? '',
           });
           break;
       }
-      debugPrint('AccessibilityService executed: ${op.type.name}');
-      return true;
+      if (result == true) {
+        debugPrint('AccessibilityService executed: ${op.type.name}');
+        return true;
+      }
+      debugPrint('AccessibilityService returned false: ${op.type.name}');
+      return false;
     } on PlatformException catch (e) {
       debugPrint('PlatformException: ${e.message}');
       return false;

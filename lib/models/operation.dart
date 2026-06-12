@@ -22,6 +22,8 @@ class Operation {
   final String? elementText;
   final String? elementId;
   final String? elementDescription;
+  final String? packageName;
+  final String? className;
 
   Operation({
     required this.id,
@@ -36,6 +38,8 @@ class Operation {
     this.elementText,
     this.elementId,
     this.elementDescription,
+    this.packageName,
+    this.className,
   });
 
   Map<String, dynamic> toJson() => {
@@ -51,6 +55,8 @@ class Operation {
         'elementText': elementText,
         'elementId': elementId,
         'elementDescription': elementDescription,
+        'packageName': packageName,
+        'className': className,
       };
 
   factory Operation.fromJson(Map<String, dynamic> json) => Operation(
@@ -66,6 +72,8 @@ class Operation {
         elementText: json['elementText'],
         elementId: json['elementId'],
         elementDescription: json['elementDescription'],
+        packageName: json['packageName'],
+        className: json['className'],
       );
 
   String get typeDescription {

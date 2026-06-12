@@ -452,6 +452,8 @@ class _RecordingScreenState extends ConsumerState<RecordingScreen> {
       final elementText = event['elementText'] as String?;
       final elementId = event['elementId'] as String?;
       final elementDescription = event['elementDescription'] as String?;
+      final packageName = event['packageName'] as String?;
+      final className = event['className'] as String?;
       final bounds = event['bounds'] as Map?;
 
       double? x, y;
@@ -475,6 +477,8 @@ class _RecordingScreenState extends ConsumerState<RecordingScreen> {
         elementText: elementText,
         elementId: elementId,
         elementDescription: elementDescription,
+        packageName: packageName,
+        className: className,
       );
 
       _addOperation(op);
@@ -484,6 +488,25 @@ class _RecordingScreenState extends ConsumerState<RecordingScreen> {
         type: OperationType.scroll,
         timestamp: DateTime.now(),
         elementId: event['elementId'] as String?,
+        packageName: event['packageName'] as String?,
+        className: event['className'] as String?,
+      );
+
+      _addOperation(op);
+    } else if (type == 'input') {
+      final text = event['text'] as String?;
+      if (text == null) return;
+
+      final op = Operation(
+        id: const Uuid().v4(),
+        type: OperationType.input,
+        text: text,
+        timestamp: DateTime.now(),
+        elementText: event['elementText'] as String?,
+        elementId: event['elementId'] as String?,
+        elementDescription: event['elementDescription'] as String?,
+        packageName: event['packageName'] as String?,
+        className: event['className'] as String?,
       );
 
       _addOperation(op);

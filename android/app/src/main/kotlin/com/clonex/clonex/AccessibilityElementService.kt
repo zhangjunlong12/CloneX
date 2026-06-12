@@ -4,6 +4,7 @@ import android.accessibilityservice.AccessibilityService
 import android.accessibilityservice.GestureDescription
 import android.graphics.Path
 import android.graphics.Rect
+import android.os.Bundle
 import android.util.Log
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
@@ -163,7 +164,8 @@ class AccessibilityElementService : AccessibilityService() {
         }
 
         try {
-            val nodes = rootNode.findAccessibilityNodeInfosByText(description)
+            val nodes = mutableListOf<AccessibilityNodeInfo>()
+            findNodesByDescription(rootNode, description, nodes)
             Log.d(TAG, "findAndClickByDescription: found ${nodes.size} nodes")
 
             for (node in nodes) {
@@ -182,6 +184,42 @@ class AccessibilityElementService : AccessibilityService() {
             rootNode.recycle()
         }
         return false
+    }
+
+    /**
+     * 设置当前聚焦输入框文本。用于重放录制到的输入操作。
+     */
+    fun setFocusedText(text: String): Boolean {
+        val rootNode = rootInActiveWindow ?: run {
+            Log.w(TAG, "setFocusedText: rootInActiveWindow is null")
+            return false
+        }
+
+        try {
+            val focusedNode = rootNode.findFocus(AccessibilityNodeInfo.FOCUS_INPUT)
+            val target = focusedNode ?: findEditableNode(rootNode)
+            if (target == null) {
+                Log.w(TAG, "setFocusedText: no editable node found")
+                return false
+            }
+
+            val args = Bundle().apply {
+                putCharSequence(
+                    AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE,
+                    text
+                )
+            }
+            val result = target.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args)
+            Log.d(TAG, "setFocusedText result: $result")
+            if (focusedNode != null) {
+                focusedNode.recycle()
+            } else {
+                target.recycle()
+            }
+            return result
+        } finally {
+            rootNode.recycle()
+        }
     }
 
     /**
@@ -253,6 +291,39 @@ class AccessibilityElementService : AccessibilityService() {
         }
     }
 
+    private fun findNodesByDescription(
+        node: AccessibilityNodeInfo,
+        description: String,
+        result: MutableList<AccessibilityNodeInfo>
+    ) {
+        val nodeDescription = node.contentDescription?.toString()
+        if (nodeDescription != null && nodeDescription.contains(description, ignoreCase = true)) {
+            result.add(AccessibilityNodeInfo.obtain(node))
+        }
+        for (i in 0 until node.childCount) {
+            node.getChild(i)?.let { child ->
+                findNodesByDescription(child, description, result)
+                child.recycle()
+            }
+        }
+    }
+
+    private fun findEditableNode(node: AccessibilityNodeInfo): AccessibilityNodeInfo? {
+        if (node.isEditable) {
+            return AccessibilityNodeInfo.obtain(node)
+        }
+        for (i in 0 until node.childCount) {
+            node.getChild(i)?.let { child ->
+                val editable = findEditableNode(child)
+                child.recycle()
+                if (editable != null) {
+                    return editable
+                }
+            }
+        }
+        return null
+    }
+
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         if (!isRecording) return
 
@@ -267,7 +338,14 @@ class AccessibilityElementService : AccessibilityService() {
             AccessibilityEvent.TYPE_VIEW_SCROLLED -> {
                 Log.d(TAG, "onAccessibilityEvent: TYPE_VIEW_SCROLLED, isRecording=true")
                 event.source?.let { source ->
-                    recordScrollAction(source)
+                    recordScrollAction(event, source)
+                    source.recycle()
+                }
+            }
+            AccessibilityEvent.TYPE_VIEW_TEXT_CHANGED -> {
+                Log.d(TAG, "onAccessibilityEvent: TYPE_VIEW_TEXT_CHANGED, isRecording=true")
+                event.source?.let { source ->
+                    recordTextAction(event, source)
                     source.recycle()
                 }
             }
@@ -290,18 +368,37 @@ class AccessibilityElementService : AccessibilityService() {
             "elementText" to elementText,
             "elementId" to elementId,
             "elementDescription" to elementDescription,
+            "packageName" to source.packageName?.toString(),
+            "className" to source.className?.toString(),
             "bounds" to mapOf("left" to bounds.left, "top" to bounds.top, "right" to bounds.right, "bottom" to bounds.bottom)
         ))
     }
 
-    private fun recordScrollAction(source: AccessibilityNodeInfo) {
+    private fun recordScrollAction(event: AccessibilityEvent, source: AccessibilityNodeInfo) {
         val elementId = source.viewIdResourceName
 
         Log.d(TAG, "Recorded scroll: id=$elementId")
 
         eventSink?.success(mapOf(
             "type" to "scroll",
-            "elementId" to elementId
+            "elementId" to elementId,
+            "packageName" to event.packageName?.toString(),
+            "className" to event.className?.toString()
+        ))
+    }
+
+    private fun recordTextAction(event: AccessibilityEvent, source: AccessibilityNodeInfo) {
+        val text = event.text.joinToString("")
+        if (text.isEmpty()) return
+
+        eventSink?.success(mapOf(
+            "type" to "input",
+            "text" to text,
+            "elementText" to source.text?.toString(),
+            "elementId" to source.viewIdResourceName,
+            "elementDescription" to source.contentDescription?.toString(),
+            "packageName" to event.packageName?.toString(),
+            "className" to event.className?.toString()
         ))
     }
 

@@ -39,42 +39,37 @@ class MainActivity : FlutterActivity() {
 
             when (call.method) {
                 "tap" -> {
-                    val x = call.argument<Double>("x")?.toInt() ?: 0
-                    val y = call.argument<Double>("y")?.toInt() ?: 0
-                    service?.performTap(x, y)
-                    result.success(true)
+                    val x = call.argument<Number>("x")?.toInt() ?: 0
+                    val y = call.argument<Number>("y")?.toInt() ?: 0
+                    result.success(service?.performTap(x, y) ?: false)
                 }
                 "longPress" -> {
-                    val x = call.argument<Double>("x")?.toInt() ?: 0
-                    val y = call.argument<Double>("y")?.toInt() ?: 0
+                    val x = call.argument<Number>("x")?.toInt() ?: 0
+                    val y = call.argument<Number>("y")?.toInt() ?: 0
                     val duration = call.argument<Int>("duration") ?: 500
-                    service?.performLongPress(x, y, duration)
-                    result.success(true)
+                    result.success(service?.performLongPress(x, y, duration) ?: false)
                 }
                 "swipe" -> {
-                    val startX = call.argument<Double>("startX")?.toInt() ?: 0
-                    val startY = call.argument<Double>("startY")?.toInt() ?: 0
-                    val endX = call.argument<Double>("endX")?.toInt() ?: 0
-                    val endY = call.argument<Double>("endY")?.toInt() ?: 0
-                    service?.performSwipe(startX, startY, endX, endY)
-                    result.success(true)
+                    val startX = call.argument<Number>("startX")?.toInt() ?: 0
+                    val startY = call.argument<Number>("startY")?.toInt() ?: 0
+                    val endX = call.argument<Number>("endX")?.toInt() ?: 0
+                    val endY = call.argument<Number>("endY")?.toInt() ?: 0
+                    result.success(service?.performSwipe(startX, startY, endX, endY) ?: false)
                 }
                 "back" -> {
-                    service?.performBack()
-                    result.success(true)
+                    result.success(service?.performBack() ?: false)
                 }
                 "home" -> {
-                    service?.performHome()
-                    result.success(true)
+                    result.success(service?.performHome() ?: false)
                 }
                 "scroll" -> {
-                    val x = call.argument<Double>("x")?.toInt() ?: 0
-                    val y = call.argument<Double>("y")?.toInt() ?: 0
-                    service?.performSwipe(x, y, x, y + 300)
-                    result.success(true)
+                    val x = call.argument<Number>("x")?.toInt() ?: 0
+                    val y = call.argument<Number>("y")?.toInt() ?: 0
+                    result.success(service?.performSwipe(x, y, x, y + 300) ?: false)
                 }
                 "input" -> {
-                    result.success(true)
+                    val text = call.argument<String>("text") ?: ""
+                    result.success(AccessibilityElementService.instance?.setFocusedText(text) ?: false)
                 }
                 "isAccessibilityServiceEnabled" -> {
                     result.success(service != null)
@@ -132,6 +127,10 @@ class MainActivity : FlutterActivity() {
                 }
                 "findAndScroll" -> {
                     result.success(service?.findAndScroll() ?: false)
+                }
+                "setFocusedText" -> {
+                    val text = call.argument<String>("text") ?: ""
+                    result.success(service?.setFocusedText(text) ?: false)
                 }
                 "isElementServiceEnabled" -> {
                     result.success(service != null)

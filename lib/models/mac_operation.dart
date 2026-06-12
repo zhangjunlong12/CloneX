@@ -119,7 +119,7 @@ class MacOperation {
     );
   }
 
-  String _typeToString(MacOperationType type) {
+  static String _typeToString(MacOperationType type) {
     switch (type) {
       case MacOperationType.mouseDown:
         return 'mouseDown';
@@ -142,7 +142,7 @@ class MacOperation {
     }
   }
 
-  MacOperationType _typeFromString(String type) {
+  static MacOperationType _typeFromString(String type) {
     switch (type) {
       case 'mouseDown':
         return MacOperationType.mouseDown;
@@ -167,7 +167,7 @@ class MacOperation {
     }
   }
 
-  String? _keyCodeToString(int? keyCode) {
+  static String? _keyCodeToString(int? keyCode) {
     if (keyCode == null) return null;
     // 常见键码映射
     const keyMap = {
@@ -179,7 +179,6 @@ class MacOperation {
       37: 'L', 38: 'J', 39: "'", 40: 'K', 41: ';', 42: '\\', 43: ',',
       44: '/', 45: 'N', 46: 'M', 47: '.', 48: 'Tab', 49: 'Space',
       50: '`', 51: 'Delete', 53: 'Escape',
-      36: 'Return', 48: 'Tab', 49: 'Space', 51: 'Delete',
       123: '←', 124: '→', 125: '↓', 126: '↑',
     };
     return keyMap[keyCode] ?? 'Key$keyCode';
